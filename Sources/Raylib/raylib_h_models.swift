@@ -230,6 +230,12 @@ public extension Raylib {
     static func drawBillboardPro(_ camera: Camera, _ texture: Texture2D, _ source: Rectangle, _ position: Vector3, _ up: Vector3, _ size: Vector2, _ origin: Vector2, _ rotation: Float, _ tint: Color) {
         RaylibC.DrawBillboardPro(camera, texture, source, position, up, size, origin, rotation, tint)
     }
+    
+    /// Draw a billboard texture defined by source and rotation
+    @inlinable
+    static func draw3DBillboardRec(_ camera: Camera, _ texture: Texture2D, _ source: Rectangle, _ position: Vector3, _ size: Vector2, _ targetQuat: Quaternion, _ tint: Color) {
+        RaylibC.Draw3DBillboardRec(camera, texture, source, position, size, targetQuat, tint)
+    }
 }
 
 //MARK: - Mesh management functions

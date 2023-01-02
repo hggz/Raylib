@@ -3426,7 +3426,11 @@ void DrawBillboardPro(Camera camera, Texture2D texture, Rectangle source, Vector
 void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Quaternion targetQuat, Color tint)
 {
     // NOTE: Billboard size will maintain source rectangle aspect ratio, size will represent billboard width
-    Vector2 sizeRatio = { size.y, size.x*(float)source.height/source.width };
+//    Vector2 sizeRatio = { size.y*(float)source.width / source.height, size.x*(float)source.height/source.width };
+//    Vector2 sizeRatio = { size.y, size.x*(float)source.height/source.width };
+//    Vector2 sizeRatio = { size.y, size.x };
+    // UPDATE: remove these modifications to match unity sprite rules
+    Vector2 sizeRatio = { size.x, size.y };
     
     Quaternion tQuat = targetQuat;
 

@@ -3423,8 +3423,260 @@ void DrawBillboardPro(Camera camera, Texture2D texture, Rectangle source, Vector
     rlSetTexture(0);
 }
 
-void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Color tint)
-{
+bool vectorAvailable(Vector3 vector) {
+    return vector.x != 0 || vector.y != 0 || vector.z != 0;
+}
+
+bool rotVectorAvailable(Vector3 vector) {
+    return vector.x > 0 || vector.y > 0 || vector.z > 0;
+}
+
+void Draw3DBillboardRecUnityExperiment1(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint) {
+    rlPushMatrix();
+
+       Vector3 camPos =  camera.position;
+       Vector3 camTar = camera.target;
+       Vector3 camUp = camera.up;
+       // get the camera view matrix
+       Matrix mat = MatrixInvert(MatrixLookAt(camPos, camTar, camUp));
+       // peel off just the rotation
+       Quaternion quat = QuaternionFromMatrix(mat);
+       mat = QuaternionToMatrix(quat);
+       
+       // apply just the rotation
+       rlMultMatrixf(MatrixToFloat(mat));
+       
+       // draw the billboard
+       float width = size.x;
+       float height = size.y;
+    float halfPosX = (position.x * 0.25);
+    float halfPosY = -(position.y * 0.5);
+    float halfWidth = (width * 0.5);
+    float halfHeight = (height * 0.5);
+    float aspectRatioW = width / height;
+    float aspectRatioH = height / width;
+       // initial spot
+       rlScalef(0.5, 0.5, 0.5);
+//       rlScalef(0.5, 0.5, 0.5);
+//       rlTranslatef(-width*0.5, -height*0.5, 0);
+//       rlTranslatef(halfPosX - halfWidth, halfPosY - halfHeight, 0);
+//    rlTranslatef(0, 0, 0);
+//    rlTranslatef(position.x - aspectRatioH, position.y, 0);
+//    rlTranslatef(halfWidth - aspectRatioH, position.y, 0);
+//       rlTranslatef(position.x * 0.25, position.y * 0.25, 0);
+//       rlTranslatef(position.x, position.y, 0);
+       
+       // null out position experiment
+   //    position = Vector3Zero();
+       
+//       float positionOffsetX = position.x - width * 0.5;
+//       float positionOffsetY = position.y - height * 0.5;
+    
+    float positionOffsetX = -position.x;
+    float positionOffsetY = position.y;
+    
+       Vector3 positionOffsetVector;
+       positionOffsetVector.x = positionOffsetX;
+       positionOffsetVector.y = positionOffsetY;
+       positionOffsetVector.z = -position.z;
+       Vector3 positionOffsetVectorInverse = Vector3Negate(positionOffsetVector);
+    
+//               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+//       rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+       
+       // apply scaling first
+       if (vectorAvailable(scale)) {
+//           rlScalef(scale.x, scale.y, scale.z);
+           if (vectorAvailable(position))
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+           else
+               rlTranslatef(-width, -height, 0);
+       }
+       
+       // apply rotation
+       if (rotVectorAvailable(eulerAngles)) {
+           
+           // prepare yourself
+           rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+          
+           if (eulerAngles.z > 180) {
+               // eh questionable
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+               rlRotatef(180 - (eulerAngles.z - 180), 0, 0, 1);
+               rlRotatef(180 - (eulerAngles.z - 180), 0, 0, 1);
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           } else {
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+               rlRotatef(eulerAngles.z, 0, 0, 1);
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           }
+           
+           rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+           rlRotatef(eulerAngles.x, -1, 0, 0);
+           rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           
+           if (eulerAngles.y > 180) {
+               // greater than 180
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+               rlRotatef(eulerAngles.y, 0, -1, 0);
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           } else {
+               // less than 180
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+               rlRotatef(eulerAngles.y, 0, -1, 0);
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+           }
+           
+           // inverse
+           rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+       }
+       
+       // apply transformation last
+       if (vectorAvailable(position)) {
+           rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+//       rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+       }
+       
+       Color color = tint;
+
+       rlCheckRenderBatchLimit(6);
+
+       rlSetTexture(texture.id);
+
+       // draw quad
+       rlBegin(RL_QUADS);
+       rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+
+       rlTexCoord2f((float)source.x / texture.width, (float)(source.y + source.height) / texture.height);
+       rlVertex3f(-width, -height, 0);  // Bottom Left Of The Texture and Quad
+       
+       rlTexCoord2f((float)(source.x + source.width) / texture.width, (float)(source.y + source.height) / texture.height);
+       rlVertex3f(+width, -height, 0);  // Bottom Right Of The Texture and Quad
+      
+       rlTexCoord2f((float)(source.x + source.width) / texture.width, (float)source.y / texture.height);
+       rlVertex3f(+width, +height, 0);  // Top Right Of The Texture and Quad
+
+       rlTexCoord2f((float)source.x / texture.width, (float)source.y / texture.height);
+       rlVertex3f(-width, +height, 0);  // Top Left Of The Texture and Quad
+
+       rlEnd();
+       rlSetTexture(0);
+       rlPopMatrix();
+}
+
+void Draw3DBillboardRecUnity(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint) {
+    rlPushMatrix();
+
+       Vector3 camPos = camera.position;
+       Vector3 camTar = camera.target;
+       Vector3 camUp = camera.up;
+       // get the camera view matrix
+       Matrix mat = MatrixInvert(MatrixLookAt(camPos, camTar, camUp));
+       // peel off just the rotation
+       Quaternion quat = QuaternionFromMatrix(mat);
+       mat = QuaternionToMatrix(quat);
+       
+       // apply just the rotation
+       rlMultMatrixf(MatrixToFloat(mat));
+       
+       // draw the billboard
+       float width = size.x / 2;
+       float height = size.y / 2;
+       // initial spot
+       rlScalef(1, 1, 1);
+       rlTranslatef(width, height, 0);
+       
+       // null out position experiment
+   //    position = Vector3Zero();
+       
+       float positionOffsetX = position.x - width * 0.5;
+       float positionOffsetY = position.y - height * 0.5;
+       Vector3 positionOffsetVector;
+       positionOffsetVector.x = positionOffsetX;
+       positionOffsetVector.y = positionOffsetY;
+       positionOffsetVector.z = position.z;
+       Vector3 positionOffsetVectorInverse = Vector3Negate(positionOffsetVector);
+       
+       // apply scaling first
+       if (vectorAvailable(scale)) {
+           rlScalef(scale.x, scale.y, scale.z);
+           if (vectorAvailable(position))
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+           else
+               rlTranslatef(-width, -height, 0);
+       }
+       
+       // apply rotation
+       if (rotVectorAvailable(eulerAngles)) {
+           
+           // prepare yourself
+           rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+          
+           if (eulerAngles.z > 180) {
+               // eh questionable
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+               rlRotatef(180 - (eulerAngles.z - 180), 0, 0, 1);
+               rlRotatef(180 - (eulerAngles.z - 180), 0, 0, 1);
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           } else {
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+               rlRotatef(eulerAngles.z, 0, 0, 1);
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           }
+           
+           rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+           rlRotatef(eulerAngles.x, -1, 0, 0);
+           rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           
+           if (eulerAngles.y > 180) {
+               // greater than 180
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+               rlRotatef(eulerAngles.y, 0, -1, 0);
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+           } else {
+               // less than 180
+               rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+               rlRotatef(eulerAngles.y, 0, -1, 0);
+               rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+           }
+           
+           // inverse
+           rlTranslatef(positionOffsetVectorInverse.x, positionOffsetVectorInverse.y, positionOffsetVectorInverse.z);
+       }
+       
+       // apply transformation last
+       if (vectorAvailable(position)) {
+           rlTranslatef(positionOffsetVector.x, positionOffsetVector.y, positionOffsetVector.z);
+       }
+       
+       Color color = tint;
+
+       rlCheckRenderBatchLimit(6);
+
+       rlSetTexture(texture.id);
+
+       // draw quad
+       rlBegin(RL_QUADS);
+       rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+
+       rlTexCoord2f((float)source.x / texture.width, (float)(source.y + source.height) / texture.height);
+       rlVertex3f(-width, -height, 0);  // Bottom Left Of The Texture and Quad
+       
+       rlTexCoord2f((float)(source.x + source.width) / texture.width, (float)(source.y + source.height) / texture.height);
+       rlVertex3f(+width, -height, 0);  // Bottom Right Of The Texture and Quad
+      
+       rlTexCoord2f((float)(source.x + source.width) / texture.width, (float)source.y / texture.height);
+       rlVertex3f(+width, +height, 0);  // Top Right Of The Texture and Quad
+
+       rlTexCoord2f((float)source.x / texture.width, (float)source.y / texture.height);
+       rlVertex3f(-width, +height, 0);  // Top Left Of The Texture and Quad
+
+       rlEnd();
+       rlSetTexture(0);
+       rlPopMatrix();
+}
+
+void Draw3DBillboardRecAlmost(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint) {
     Vector2 sizeRatio = { size.x, size.y };
     
     Quaternion tQuat = QuaternionFromEuler(eulerAngles.x*DEG2RAD, eulerAngles.y*-DEG2RAD, eulerAngles.z*-DEG2RAD);
@@ -3480,6 +3732,38 @@ void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vect
     rlEnd();
 
     rlSetTexture(0);
+}
+
+
+void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint)
+{
+    int approach = 3;
+    switch (approach) {
+        case 0:
+            size.x *= scale.x;
+            size.y *= scale.y;
+            position.x = -1 * (size.x * 0.5 + position.x);
+            position.y = (size.y * 0.5) + position.y;
+            Draw3DBillboardRecAlmost(camera, texture, source, position, size, eulerAngles, scale, tint);
+            break;
+        case 1:
+            Draw3DBillboardRecUnity(camera, texture, source, position, size, eulerAngles, scale, tint);
+            break;
+        case 2:
+            size.x *= scale.x;
+            size.y *= scale.y;
+            position.x = -1 * (size.x * 0.5 + position.x);
+            position.y = (size.y * 0.5) + position.y;
+            DrawBillboardPro(camera, texture, source, position, camera.up, size, Vector2Zero(), 0.0f, tint);
+            break;
+        case 3:
+            size.x *= scale.x;
+            size.y *= scale.y;
+            position.x = -1 * (size.x * 0.5 + position.x);
+            position.y = (size.y * 0.5) + position.y;
+            Draw3DBillboardRecUnityExperiment1(camera, texture, source, position, size, eulerAngles, scale, tint);
+            break;
+    }
 }
 
 // Draw a bounding box with wires

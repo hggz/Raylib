@@ -233,8 +233,8 @@ public extension Raylib {
     
     /// Draw a billboard texture defined by source and rotation
     @inlinable
-    static func draw3DBillboardRec(_ camera: Camera, _ texture: Texture2D, _ source: Rectangle, _ position: Vector3, _ size: Vector2, _ eulerAngles: Vector3, _ scale: Vector3, _ tint: Color) {
-        RaylibC.Draw3DBillboardRec(camera, texture, source, position, size, eulerAngles, scale, tint)
+    static func draw3DBillboardRec(_ camera: Camera, _ texture: Texture2D, _ source: Rectangle, _ position: Vector3, _ size: Vector2, _ eulerAngles: Vector3, _ scale: Vector3, _ parentScale: Vector3, _ parentPos: Vector3, _ parentRot: Vector3, _ tint: Color) {
+        RaylibC.Draw3DBillboardRec(camera, texture, source, position, size, eulerAngles, scale, parentScale, parentPos, parentRot, tint)
     }
 }
 

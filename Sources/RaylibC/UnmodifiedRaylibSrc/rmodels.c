@@ -3423,7 +3423,7 @@ void DrawBillboardPro(Camera camera, Texture2D texture, Rectangle source, Vector
     rlSetTexture(0);
 }
 
-void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint)
+void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Vector3 parentScale, Vector3 parentPos, Vector3 parentRot, Color tint)
 {
     size.x *= scale.x;
     size.y *= scale.y;

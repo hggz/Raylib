@@ -3676,6 +3676,63 @@ void Draw3DBillboardRecUnity(Camera camera, Texture2D texture, Rectangle source,
        rlPopMatrix();
 }
 
+void Draw3DBillboardRecAlmost2(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint) {
+    Vector2 sizeRatio = { size.x, size.y };
+    
+    Quaternion tQuat = QuaternionFromEuler(eulerAngles.x*DEG2RAD, eulerAngles.y*-DEG2RAD, eulerAngles.z*-DEG2RAD);
+
+    Matrix matView = MatrixLookAt(camera.position, camera.target, camera.up);
+
+    Vector3 right = { matView.m0, matView.m4, matView.m8 };
+    Vector3 up = { matView.m1, matView.m5, matView.m9 };
+    
+    // rotate both up + right vectors to achieve same effect like unity
+    up = Vector3RotateByQuaternion(up, tQuat);
+    right = Vector3RotateByQuaternion(right, tQuat);
+    
+    // No division by 2 - we'll use these vectors at their full width/height size.
+    Vector3 rightScaled = Vector3Scale(right, sizeRatio.x);
+    Vector3 upScaled = Vector3Scale(up, sizeRatio.y);
+
+    Vector3 topLeft = upScaled;
+    Vector3 topRight = Vector3Add(rightScaled, upScaled);
+    Vector3 bottomRight = rightScaled;
+    Vector3 bottomLeft = {0, 0, 0};
+
+    // Translate points to the pivot point (position)
+    topLeft = Vector3Add(topLeft, position);
+    topRight = Vector3Add(topRight, position);
+    bottomRight = Vector3Add(bottomRight, position);
+    bottomLeft = Vector3Add(bottomLeft, position);
+
+    rlCheckRenderBatchLimit(4);
+
+    rlSetTexture(texture.id);
+
+    rlBegin(RL_QUADS);
+        rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+
+        // Bottom-left corner for texture and quad
+        rlTexCoord2f((float)source.x/texture.width, (float)source.y/texture.height);
+        rlVertex3f(topLeft.x, topLeft.y, topLeft.z);
+
+        // Top-left corner for texture and quad
+        rlTexCoord2f((float)source.x/texture.width, (float)(source.y + source.height)/texture.height);
+        rlVertex3f(bottomLeft.x, bottomLeft.y, bottomLeft.z);
+
+        // Top-right corner for texture and quad
+        rlTexCoord2f((float)(source.x + source.width)/texture.width, (float)(source.y + source.height)/texture.height);
+        rlVertex3f(bottomRight.x, bottomRight.y, bottomRight.z);
+
+        // Bottom-right corner for texture and quad
+        rlTexCoord2f((float)(source.x + source.width)/texture.width, (float)source.y/texture.height);
+        rlVertex3f(topRight.x, topRight.y, topRight.z);
+    rlEnd();
+
+    rlSetTexture(0);
+}
+
+
 void Draw3DBillboardRecAlmost(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint) {
     Vector2 sizeRatio = { size.x, size.y };
     
@@ -3737,7 +3794,7 @@ void Draw3DBillboardRecAlmost(Camera camera, Texture2D texture, Rectangle source
 
 void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Color tint)
 {
-    int approach = 3;
+    int approach = 4;
     switch (approach) {
         case 0:
             size.x *= scale.x;
@@ -3762,6 +3819,17 @@ void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vect
             position.x = -1 * (size.x * 0.5 + position.x);
             position.y = (size.y * 0.5) + position.y;
             Draw3DBillboardRecUnityExperiment1(camera, texture, source, position, size, eulerAngles, scale, tint);
+            break;
+        case 4:
+            size.x *= scale.x;
+            size.y *= scale.y;
+            
+//            position.x = -1 * (size.x * 0.5 + position.x);
+//            position.y = (size.y * 0.5) + position.y;
+            
+            position.x *= -1;
+
+            Draw3DBillboardRecAlmost2(camera, texture, source, position, size, eulerAngles, scale, tint);
             break;
     }
 }

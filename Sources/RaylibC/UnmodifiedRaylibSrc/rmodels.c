@@ -3427,6 +3427,11 @@ void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vect
 {
     size.x *= scale.x;
     size.y *= scale.y;
+    
+    position.x += parentPos.x;
+    position.y += parentPos.y;
+    position.z += parentPos.z;
+    
     position.x *= -1;
 
     Vector2 sizeRatio = { size.x, size.y };

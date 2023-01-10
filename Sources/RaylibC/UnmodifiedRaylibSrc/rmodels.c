@@ -3428,6 +3428,35 @@ void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vect
     size.x *= scale.x;
     size.y *= scale.y;
     
+    // multiply by parent scale
+    size.x *= parentScale.x;
+    float ogSizeY = size.y;
+    size.y *= parentScale.y;
+    
+    // add for parent scale against existing position
+    position.x = position.x * parentScale.x;
+    
+    // what to do with parent scale y
+    if (parentScale.y != 1) {
+        // if x is rotated, we modify that
+        if (eulerAngles.x != 0) {
+            // we cant do an outright angleX / parentScaleY, we need to find the right angle i think
+            float potentialAngle = Vector3Angle(parentScale, eulerAngles);
+            float potentialAngle2 = potentialAngle * parentScale.y;
+            eulerAngles.x = eulerAngles.x / potentialAngle2;
+            size.y = ogSizeY * potentialAngle2;
+        }
+        // otherwise we modify the y height
+        else {
+            position.y = position.y * parentScale.y;
+        }
+    }
+    
+    if (parentScale.z != 1) {
+        position.z = position.z * parentScale.z;
+    }
+    
+    // final add on the parent position
     position.x += parentPos.x;
     position.y += parentPos.y;
     position.z += parentPos.z;

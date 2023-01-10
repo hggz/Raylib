@@ -3423,43 +3423,65 @@ void DrawBillboardPro(Camera camera, Texture2D texture, Rectangle source, Vector
     rlSetTexture(0);
 }
 
-void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Vector3 parentScale, Vector3 parentPos, Vector3 parentRot, Color tint)
+void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Vector3 parentScale, Vector3 parentPos, Vector3 parentRot, Color tint, bool attemptAncestorScaling, bool attemptAncestorRotation)
 {
     size.x *= scale.x;
     size.y *= scale.y;
     
-    // multiply by parent scale
-    size.x *= parentScale.x;
-    float ogSizeY = size.y;
-    size.y *= parentScale.y;
-    
-    // add for parent scale against existing position
-    position.x = position.x * parentScale.x;
-    
-    // what to do with parent scale y
-    if (parentScale.y != 1) {
-        // if x is rotated, we modify that
-        if (eulerAngles.x != 0) {
-            // we cant do an outright angleX / parentScaleY, we need to find the right angle i think
-            float potentialAngle = Vector3Angle(parentScale, eulerAngles);
-            float potentialAngle2 = potentialAngle * parentScale.y;
-            eulerAngles.x = eulerAngles.x / potentialAngle2;
-            size.y = ogSizeY * potentialAngle2;
+    if (attemptAncestorScaling) {
+        // multiply by parent scale
+        size.x *= parentScale.x;
+        float ogSizeY = size.y;
+        size.y *= parentScale.y;
+        
+        // add for parent scale against existing position
+        position.x = position.x * parentScale.x;
+        
+        // what to do with parent scale y
+        if (parentScale.y != 1) {
+            // if x is rotated, we modify that
+            if (eulerAngles.x != 0) {
+                // we cant do an outright angleX / parentScaleY, we need to find the right angle i think
+                float potentialAngle = Vector3Angle(parentScale, eulerAngles);
+                float potentialAngle2 = potentialAngle * parentScale.y;
+                eulerAngles.x = eulerAngles.x / potentialAngle2;
+                size.y = ogSizeY * potentialAngle2;
+            }
+            // otherwise we modify the y height
+            else {
+                position.y = position.y * parentScale.y;
+            }
         }
-        // otherwise we modify the y height
-        else {
-            position.y = position.y * parentScale.y;
+        
+        if (parentScale.z != 1) {
+            position.z = position.z * parentScale.z;
         }
-    }
-    
-    if (parentScale.z != 1) {
-        position.z = position.z * parentScale.z;
     }
     
     // final add on the parent position
     position.x += parentPos.x;
     position.y += parentPos.y;
     position.z += parentPos.z;
+    
+    if (attemptAncestorRotation) {
+        // evaluate parent rotations - 'attempts' to rotate children...dont try this at home kids.
+        float potentialAngle1 = Vector3Angle(position, parentRot);
+        if (parentRot.x != 0) {
+            position.y = position.y / potentialAngle1;
+            position.z = position.z / potentialAngle1;
+            eulerAngles.x += parentRot.x;
+        }
+        
+        if (parentRot.y != 0) {
+            position.x = position.x * potentialAngle1;
+            position.z = position.z / potentialAngle1;
+            eulerAngles.x += parentRot.x;
+        }
+        
+        if (parentRot.z != 0) {
+            eulerAngles.z += parentRot.z;
+        }
+    }
     
     position.x *= -1;
 

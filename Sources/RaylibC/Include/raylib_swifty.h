@@ -1420,7 +1420,7 @@ RLAPI void DrawBoundingBox(BoundingBox box, Color color);                       
 RLAPI void DrawBillboard(Camera camera, Texture2D texture, Vector3 position, float size, Color tint);   // Draw a billboard texture
 RLAPI void DrawBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Color tint); // Draw a billboard texture defined by source
 RLAPI void DrawBillboardPro(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector3 up, Vector2 size, Vector2 origin, float rotation, Color tint); // Draw a billboard texture defined by source and rotation
-RLAPI void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Vector3 parentScale, Vector3 parentPos, Vector3 parentRot, Color tint); // Draw a billboard texture with full 3D
+RLAPI void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vector3 position, Vector2 size, Vector3 eulerAngles, Vector3 scale, Vector3 parentScale, Vector3 parentPos, Vector3 parentRot, Color tint, bool attemptAncestorScaling, bool attemptAncestorRotation); // Draw a billboard texture with full 3D
 
 // Mesh management functions
 RLAPI void UploadMesh(Mesh *mesh, bool dynamic);                                            // Upload mesh vertex data in GPU and provide VAO/VBO ids

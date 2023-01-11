@@ -3516,6 +3516,9 @@ void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vect
     rlCheckRenderBatchLimit(4);
 
     rlSetTexture(texture.id);
+    
+    // disable backface culling. TODO - make this a toggable mode?
+    rlDisableBackfaceCulling();
 
     rlBegin(RL_QUADS);
         rlColor4ub(tint.r, tint.g, tint.b, tint.a);

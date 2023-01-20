@@ -236,6 +236,36 @@ public extension Raylib {
     static func draw3DBillboardRec(_ camera: Camera, _ texture: Texture2D, _ source: Rectangle, _ position: Vector3, _ size: Vector2, _ eulerAngles: Vector3, _ scale: Vector3, _ parentScale: Vector3, _ parentPos: Vector3, _ parentRot: Vector3, _ tint: Color, _ attemptAncestorScaling: Bool, _ attemptAncestorRotation: Bool) {
         RaylibC.Draw3DBillboardRec(camera, texture, source, position, size, eulerAngles, scale, parentScale, parentPos, parentRot, tint, attemptAncestorScaling, attemptAncestorRotation)
     }
+    
+    @inlinable
+    static func drawLightMask(_ mask: RenderTexture, _ valid: Bool, _ position: Vector2, _ outerRadius: Float, _ shadowCount: Int32, _ vertices: [Vector2]) {
+        var _vertices = vertices
+        _vertices.withUnsafeMutableBufferPointer { bufferPointer in
+            RaylibC.DrawLightMask(
+                mask,
+                valid,
+                position,
+                outerRadius,
+                shadowCount,
+                bufferPointer.baseAddress
+            )
+        }
+    }
+    
+    @inlinable
+    static func drawDirtyLightMask(_ lightMask: RenderTexture, _ mask: RenderTexture, _ active: Bool, _ valid: Bool, _ position: Vector2, _ outerRadius: Float, _ maxLights: Int32, _ width: Float, _ height: Float) {
+        RaylibC.DrawDirtyLightMask(
+            lightMask,
+            mask,
+            active,
+            valid,
+            position,
+            outerRadius,
+            maxLights,
+            width,
+            height
+        )
+    }
 }
 
 //MARK: - Mesh management functions

@@ -3543,6 +3543,72 @@ void Draw3DBillboardRec(Camera camera, Texture2D texture, Rectangle source, Vect
     rlSetTexture(0);
 }
 
+// Custom Blend Modes
+#define RLGL_SRC_ALPHA 0x0302
+#define RLGL_MIN 0x8007
+#define RLGL_MAX 0x8008
+
+//#define MAX_BOXES     20
+//#define MAX_SHADOWS   MAX_BOXES*3         // MAX_BOXES *3. Each box can cast up to two shadow volumes for the edges it is away from, and one for the box itself
+//#define MAX_LIGHTS    16
+
+
+void DrawLightMask(RenderTexture mask, bool valid, Vector2 position, float outerRadius, int shadowCount, Vector2 *vertices) {
+     BeginTextureMode(mask);
+
+         ClearBackground(WHITE);
+
+         // Force the blend mode to only set the alpha of the destination
+         rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MIN);
+         rlSetBlendMode(BLEND_CUSTOM);
+
+         // If we are valid, then draw the light radius to the alpha mask
+         if (valid) DrawCircleGradient((int)position.x, (int)position.y, outerRadius, ColorAlpha(WHITE, 0), WHITE);
+         
+         rlDrawRenderBatchActive();
+
+         // Cut out the shadows from the light radius by forcing the alpha to maximum
+         rlSetBlendMode(BLEND_ALPHA);
+         rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MAX);
+         rlSetBlendMode(BLEND_CUSTOM);
+
+         // Draw the shadows to the alpha mask
+         for (int i = 0; i < shadowCount; i++)
+         {
+             DrawTriangleFan(vertices, 4, WHITE);
+         }
+
+         rlDrawRenderBatchActive();
+         
+         // Go back to normal blend mode
+         rlSetBlendMode(BLEND_ALPHA);
+
+     EndTextureMode();
+}
+
+void DrawDirtyLightMask(RenderTexture lightMask, RenderTexture mask, bool active, bool valid, Vector2 position, float outerRadius, int maxLights, float width, float height) {
+     // Build up the light mask
+     BeginTextureMode(lightMask);
+     
+         ClearBackground(BLACK);
+
+         // Force the blend mode to only set the alpha of the destination
+         rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MIN);
+         rlSetBlendMode(BLEND_CUSTOM);
+
+         // Merge in all the light masks
+         for (int i = 0; i < maxLights; i++)
+         {
+             if (active) DrawTextureRec(mask.texture, (Rectangle){ 0, 0, (float)width, -(float)height }, Vector2Zero(), WHITE);
+         }
+
+         rlDrawRenderBatchActive();
+
+         // Go back to normal blend
+         rlSetBlendMode(BLEND_ALPHA);
+     EndTextureMode();
+}
+
 // Draw a bounding box with wires
 void DrawBoundingBox(BoundingBox box, Color color)
 {

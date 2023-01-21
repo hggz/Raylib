@@ -136,7 +136,7 @@ static ModelAnimation *LoadModelAnimationsIQM(const char *fileName, unsigned int
 #endif
 #if defined(SUPPORT_FILEFORMAT_GLTF)
 static Model LoadGLTF(const char *fileName);    // Load GLTF mesh data
-//static ModelAnimation *LoadModelAnimationGLTF(const char *fileName, unsigned int *animCount);    // Load GLTF animation data
+static ModelAnimation *LoadModelAnimationsGLTF(const char *fileName, unsigned int *animCount);    // Load GLTF animation data
 #endif
 #if defined(SUPPORT_FILEFORMAT_VOX)
 static Model LoadVOX(const char *filename);     // Load VOX mesh data
@@ -1822,7 +1822,7 @@ ModelAnimation *LoadModelAnimations(const char *fileName, unsigned int *animCoun
     if (IsFileExtension(fileName, ".iqm")) animations = LoadModelAnimationsIQM(fileName, animCount);
 #endif
 #if defined(SUPPORT_FILEFORMAT_GLTF)
-    //if (IsFileExtension(fileName, ".gltf;.glb")) animations = LoadModelAnimationGLTF(fileName, animCount);
+    if (IsFileExtension(fileName, ".gltf;.glb")) animations = LoadModelAnimationsGLTF(fileName, animCount);
 #endif
 
     return animations;
@@ -3921,6 +3921,32 @@ RayCollision GetRayCollisionQuad(Ray ray, Vector3 p1, Vector3 p2, Vector3 p3, Ve
 //----------------------------------------------------------------------------------
 // Module specific Functions Definition
 //----------------------------------------------------------------------------------
+#if defined(SUPPORT_FILEFORMAT_IQM) || defined(SUPPORT_FILEFORMAT_GLTF)
+// Build pose from parent joints
+// NOTE: Required for animations loading (required by IQM and GLTF)
+static void BuildPoseFromParentJoints(BoneInfo *bones, int boneCount, Transform *transforms)
+{
+    for (int i = 0; i < boneCount; i++)
+    {
+        if (bones[i].parent >= 0)
+        {
+            if (bones[i].parent > i)
+            {
+                TRACELOG(LOG_WARNING, "Assumes bones are toplogically sorted, but bone %d has parent %d. Skipping.", i, bones[i].parent);
+                continue;
+            }
+            transforms[i].rotation = QuaternionMultiply(transforms[bones[i].parent].rotation, transforms[i].rotation);
+            transforms[i].translation = Vector3RotateByQuaternion(transforms[i].translation, transforms[bones[i].parent].rotation);
+            transforms[i].translation = Vector3Add(transforms[i].translation, transforms[bones[i].parent].translation);
+            transforms[i].scale = Vector3Multiply(transforms[i].scale, transforms[bones[i].parent].scale);
+        }
+    }
+}
+#endif
+
+//----------------------------------------------------------------------------------
+// Module specific Functions Definition
+//----------------------------------------------------------------------------------
 #if defined(SUPPORT_FILEFORMAT_OBJ)
 // Load OBJ mesh data
 //
@@ -4733,7 +4759,7 @@ static Image LoadImageFromCgltfImage(cgltf_image *cgltfImage, const char *texPat
                 if (result == cgltf_result_success)
                 {
                     image = LoadImageFromMemory(".png", (unsigned char *)data, outSize);
-                    cgltf_free((cgltf_data*)data);
+                    MemFree((cgltf_data*)data);
                 }
             }
         }
@@ -4769,21 +4795,48 @@ static Image LoadImageFromCgltfImage(cgltf_image *cgltfImage, const char *texPat
     return image;
 }
 
+// Load bone info from GLTF skin data
+static BoneInfo *LoadBoneInfoGLTF(cgltf_skin skin, int *boneCount)
+{
+    *boneCount = (int)skin.joints_count;
+    BoneInfo *bones = RL_MALLOC(skin.joints_count*sizeof(BoneInfo));
+
+    for (unsigned int i = 0; i < skin.joints_count; i++)
+    {
+        cgltf_node node = *skin.joints[i];
+        strncpy(bones[i].name, node.name, sizeof(bones[i].name));
+
+        // Find parent bone index
+        unsigned int parentIndex = -1;
+        
+        for (unsigned int j = 0; j < skin.joints_count; j++)
+        {
+            if (skin.joints[j] == node.parent)
+            {
+                parentIndex = j;
+                break;
+            }
+        }
+
+        bones[i].parent = parentIndex;
+    }
+
+    return bones;
+}
+
 // Load glTF file into model struct, .gltf and .glb supported
 static Model LoadGLTF(const char *fileName)
 {
     /*********************************************************************************************
-
         Function implemented by Wilhem Barbier(@wbrbr), with modifications by Tyler Bezera(@gamerfiend)
         Reviewed by Ramon Santamaria (@raysan5)
-
         FEATURES:
           - Supports .gltf and .glb files
           - Supports embedded (base64) or external textures
           - Supports PBR metallic/roughness flow, loads material textures, values and colors
                      PBR specular/glossiness flow and extended texture flows not supported
           - Supports multiple meshes per model (every primitives is loaded as a separate mesh)
-
+          - Supports basic animations
         RESTRICTIONS:
           - Only triangle meshes supported
           - Vertex attibute types and formats supported:
@@ -4793,7 +4846,6 @@ static Model LoadGLTF(const char *fileName)
               > Colors: vec4: u8, u16, f32 (normalized)
               > Indices: u16, u32 (truncated to u16)
           - Node hierarchies or transforms not supported
-
     ***********************************************************************************************/
 
     // Macro to simplify attributes loading code
@@ -4848,7 +4900,6 @@ static Model LoadGLTF(const char *fileName)
         // Load our model data: meshes and materials
         model.meshCount = primitivesCount;
         model.meshes = RL_CALLOC(model.meshCount, sizeof(Mesh));
-        for (int i = 0; i < model.meshCount; i++) model.meshes[i].vboId = (unsigned int*)RL_CALLOC(MAX_MESH_VERTEX_BUFFERS, sizeof(unsigned int));
 
         // NOTE: We keep an extra slot for default material, in case some mesh requires it
         model.materialCount = (int)data->materials_count + 1;
@@ -5050,7 +5101,7 @@ static Model LoadGLTF(const char *fileName)
                             LOAD_ATTRIBUTE(attribute, 4, unsigned short, temp);
 
                             // Convert data to raylib color data type (4 bytes)
-                            for (int c = 0; c < attribute->count*4; c++) model.meshes[meshIndex].colors[c] = (unsigned char)(((float)temp[c]/65535.0f)*255.0f);
+                            for (unsigned int c = 0; c < attribute->count*4; c++) model.meshes[meshIndex].colors[c] = (unsigned char)(((float)temp[c]/65535.0f)*255.0f);
 
                             RL_FREE(temp);
                         }
@@ -5064,7 +5115,7 @@ static Model LoadGLTF(const char *fileName)
                             LOAD_ATTRIBUTE(attribute, 4, float, temp);
 
                             // Convert data to raylib color data type (4 bytes), we expect the color data normalized
-                            for (int c = 0; c < attribute->count*4; c++) model.meshes[meshIndex].colors[c] = (unsigned char)(temp[c]*255.0f);
+                            for (unsigned int c = 0; c < attribute->count*4; c++) model.meshes[meshIndex].colors[c] = (unsigned char)(temp[c]*255.0f);
 
                             RL_FREE(temp);
                         }
@@ -5099,7 +5150,7 @@ static Model LoadGLTF(const char *fileName)
                         LOAD_ATTRIBUTE(attribute, 1, unsigned int, temp);
 
                         // Convert data to raylib indices data type (unsigned short)
-                        for (int d = 0; d < attribute->count; d++) model.meshes[meshIndex].indices[d] = (unsigned short)temp[d];
+                        for (unsigned int d = 0; d < attribute->count; d++) model.meshes[meshIndex].indices[d] = (unsigned short)temp[d];
 
                         TRACELOG(LOG_WARNING, "MODEL: [%s] Indices data converted from u32 to u16, possible loss of data", fileName);
 
@@ -5111,7 +5162,7 @@ static Model LoadGLTF(const char *fileName)
 
                 // Assign to the primitive mesh the corresponding material index
                 // NOTE: If no material defined, mesh uses the already assigned default material (index: 0)
-                for (int m = 0; m < data->materials_count; m++)
+                for (unsigned int m = 0; m < data->materials_count; m++)
                 {
                     // The primitive actually keeps the pointer to the corresponding material,
                     // raylib instead assigns to the mesh the by its index, as loaded in model.materials array
@@ -5128,11 +5179,45 @@ static Model LoadGLTF(const char *fileName)
             }
         }
 
-/*
-        // TODO: Load glTF meshes animation data
+        // Load glTF meshes animation data
         // REF: https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#skins
         // REF: https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#skinned-mesh-attributes
+        //
+        // LIMITATIONS:
+        //  - Only supports 1 armature per file, and skips loading it if there are multiple armatures
+        //  - Only supports linear interpolation (default method in Blender when checked "Always Sample Animations" when exporting a GLTF file)
+        //  - Only supports translation/rotation/scale animation channel.path, weights not considered (i.e. morph targets)
         //----------------------------------------------------------------------------------------------------
+        if (data->skins_count == 1)
+        {
+            cgltf_skin skin = data->skins[0];
+            model.bones = LoadBoneInfoGLTF(skin, &model.boneCount);
+            model.bindPose = RL_MALLOC(model.boneCount*sizeof(Transform));
+
+            for (int i = 0; i < model.boneCount; i++)
+            {
+                cgltf_node node = *skin.joints[i];
+                model.bindPose[i].translation.x = node.translation[0];
+                model.bindPose[i].translation.y = node.translation[1];
+                model.bindPose[i].translation.z = node.translation[2];
+
+                model.bindPose[i].rotation.x = node.rotation[0];
+                model.bindPose[i].rotation.y = node.rotation[1];
+                model.bindPose[i].rotation.z = node.rotation[2];
+                model.bindPose[i].rotation.w = node.rotation[3];
+
+                model.bindPose[i].scale.x = node.scale[0];
+                model.bindPose[i].scale.y = node.scale[1];
+                model.bindPose[i].scale.z = node.scale[2];
+            }
+
+            BuildPoseFromParentJoints(model.bones, model.boneCount, model.bindPose);
+        }
+        else if (data->skins_count > 1)
+        {
+            TRACELOG(LOG_ERROR, "MODEL: [%s] can only load one skin (armature) per model, but gltf skins_count == %i", fileName, data->skins_count);
+        }
+
         for (unsigned int i = 0, meshIndex = 0; i < data->meshes_count; i++)
         {
             for (unsigned int p = 0; p < data->meshes[i].primitives_count; p++)
@@ -5154,6 +5239,9 @@ static Model LoadGLTF(const char *fileName)
                             model.meshes[meshIndex].boneIds = RL_CALLOC(model.meshes[meshIndex].vertexCount*4, sizeof(unsigned char));
 
                             // Load 4 components of unsigned char data type into mesh.boneIds
+                            // for cgltf_attribute_type_joints we have:
+                            //   - data.meshes[0] (256 vertices)
+                            //   - 256 values, provided as cgltf_type_vec4 of bytes (4 byte per joint, stride 4)
                             LOAD_ATTRIBUTE(attribute, 4, unsigned char, model.meshes[meshIndex].boneIds)
                         }
                         else TRACELOG(LOG_WARNING, "MODEL: [%s] Joint attribute data format not supported, use vec4 u8", fileName);
@@ -5168,16 +5256,26 @@ static Model LoadGLTF(const char *fileName)
                             model.meshes[meshIndex].boneWeights = RL_CALLOC(model.meshes[meshIndex].vertexCount*4, sizeof(float));
 
                             // Load 4 components of float data type into mesh.boneWeights
+                            // for cgltf_attribute_type_weights we have:
+                            //   - data.meshes[0] (256 vertices)
+                            //   - 256 values, provided as cgltf_type_vec4 of float (4 byte per joint, stride 16)
                             LOAD_ATTRIBUTE(attribute, 4, float, model.meshes[meshIndex].boneWeights)
                         }
                         else TRACELOG(LOG_WARNING, "MODEL: [%s] Joint weight attribute data format not supported, use vec4 float", fileName);
                     }
                 }
 
+                // Animated vertex data
+                model.meshes[meshIndex].animVertices = RL_CALLOC(model.meshes[meshIndex].vertexCount*3, sizeof(float));
+                memcpy(model.meshes[meshIndex].animVertices, model.meshes[meshIndex].vertices, model.meshes[meshIndex].vertexCount*3*sizeof(float));
+                model.meshes[meshIndex].animNormals = RL_CALLOC(model.meshes[meshIndex].vertexCount*3, sizeof(float));
+                memcpy(model.meshes[meshIndex].animNormals, model.meshes[meshIndex].normals, model.meshes[meshIndex].vertexCount*3*sizeof(float));
+
                 meshIndex++;       // Move to next mesh
             }
+
         }
-*/
+
         // Free all cgltf loaded data
         cgltf_free(data);
     }
@@ -5187,6 +5285,222 @@ static Model LoadGLTF(const char *fileName)
     UnloadFileData(fileData);
 
     return model;
+}
+
+// Get interpolated pose for bone sampler at a specific time. Returns true on success.
+static bool GetPoseAtTimeGLTF(cgltf_accessor *input, cgltf_accessor *output, float time, void *data)
+{
+    // Input and output should have the same count
+    float tstart = 0.0f;
+    float tend = 0.0f;
+    int keyframe = 0;       // Defaults to first pose
+    
+    for (int i = 0; i < input->count - 1; i++)
+    {
+        cgltf_bool r1 = cgltf_accessor_read_float(input, i, &tstart, 1);
+        if (!r1) return false;
+        
+        cgltf_bool r2 = cgltf_accessor_read_float(input, i + 1, &tend, 1);
+        if (!r2) return false;
+
+        if ((tstart <= time) && (time < tend))
+        {
+            keyframe = i;
+            break;
+        }
+    }
+
+    float t = (time - tstart)/(tend - tstart);
+    t = (t < 0.0f)? 0.0f : t;
+    t = (t > 1.0f)? 1.0f : t;
+
+    if (output->component_type != cgltf_component_type_r_32f) return false;
+
+    if (output->type == cgltf_type_vec3)
+    {
+        float tmp[3] = { 0.0f };
+        cgltf_accessor_read_float(output, keyframe, tmp, 3);
+        Vector3 v1 = {tmp[0], tmp[1], tmp[2]};
+        cgltf_accessor_read_float(output, keyframe+1, tmp, 3);
+        Vector3 v2 = {tmp[0], tmp[1], tmp[2]};
+        Vector3 *r = data;
+        *r = Vector3Lerp(v1, v2, t);
+    }
+    else if (output->type == cgltf_type_vec4)
+    {
+        float tmp[4] = { 0.0f };
+        cgltf_accessor_read_float(output, keyframe, tmp, 4);
+        Vector4 v1 = {tmp[0], tmp[1], tmp[2], tmp[3]};
+        cgltf_accessor_read_float(output, keyframe+1, tmp, 4);
+        Vector4 v2 = {tmp[0], tmp[1], tmp[2], tmp[3]};
+        Vector4 *r = data;
+        
+        // Only v4 is for rotations, so we know it's a quat
+        *r = QuaternionSlerp(v1, v2, t);
+    }
+    
+    return true;
+}
+
+#define GLTF_ANIMDELAY 17    // Animation frames delay, (~1000 ms/60 FPS = 16.666666* ms)
+
+static ModelAnimation *LoadModelAnimationsGLTF(const char *fileName, unsigned int *animCount)
+{
+    // glTF file loading
+    unsigned int dataSize = 0;
+    unsigned char *fileData = LoadFileData(fileName, &dataSize);
+
+    ModelAnimation *animations = NULL;
+    
+    // glTF data loading
+    cgltf_options options = { 0 };
+    cgltf_data *data = NULL;
+    cgltf_result result = cgltf_parse(&options, fileData, dataSize, &data);
+    
+    if (result != cgltf_result_success)
+    {
+        TRACELOG(LOG_WARNING, "MODEL: [%s] Failed to load glTF data", fileName);
+        *animCount = 0;
+        return NULL;
+    }
+
+    result = cgltf_load_buffers(&options, data, fileName);
+    if (result != cgltf_result_success) TRACELOG(LOG_INFO, "MODEL: [%s] Failed to load animation buffers", fileName);
+
+    if (result == cgltf_result_success)
+    {
+        if (data->skins_count == 1)
+        {
+            cgltf_skin skin = data->skins[0];
+            *animCount = (int)data->animations_count;
+            animations = RL_MALLOC(data->animations_count*sizeof(ModelAnimation));
+            
+            for (unsigned int i = 0; i < data->animations_count; i++)
+            {
+                animations[i].bones = LoadBoneInfoGLTF(skin, &animations[i].boneCount);
+
+                cgltf_animation animData = data->animations[i];
+
+                struct Channels {
+                    cgltf_animation_channel *translate;
+                    cgltf_animation_channel *rotate;
+                    cgltf_animation_channel *scale;
+                };
+
+                struct Channels *boneChannels = RL_CALLOC(animations[i].boneCount, sizeof(struct Channels));
+                float animDuration = 0.0f;
+                
+                for (unsigned int j = 0; j < animData.channels_count; j++)
+                {
+                    cgltf_animation_channel channel = animData.channels[j];
+                    int boneIndex = -1;
+                    
+                    for (unsigned int k = 0; k < skin.joints_count; k++)
+                    {
+                        if (animData.channels[j].target_node == skin.joints[k])
+                        {
+                            boneIndex = k;
+                            break;
+                        }
+                    }
+
+                    if (boneIndex == -1)
+                    {
+                        // Animation channel for a node not in the armature
+                        continue;
+                    }
+
+                    if (animData.channels[j].sampler->interpolation == cgltf_interpolation_type_linear)
+                    {
+                        if (channel.target_path == cgltf_animation_path_type_translation)
+                        {
+                            boneChannels[boneIndex].translate = &animData.channels[j];
+                        }
+                        else if (channel.target_path == cgltf_animation_path_type_rotation)
+                        {
+                            boneChannels[boneIndex].rotate = &animData.channels[j];
+                        }
+                        else if (channel.target_path == cgltf_animation_path_type_scale)
+                        {
+                            boneChannels[boneIndex].scale = &animData.channels[j];
+                        }
+                        else
+                        {
+                            TRACELOG(LOG_WARNING, "MODEL: [%s] Unsupported target_path on channel %d's sampler for animation %d. Skipping.", fileName, j, i);
+                        }
+                    }
+                    else TRACELOG(LOG_WARNING, "MODEL: [%s] Only linear interpolation curves are supported for GLTF animation.", fileName);
+
+                    float t = 0.0f;
+                    cgltf_bool r = cgltf_accessor_read_float(channel.sampler->input, channel.sampler->input->count - 1, &t, 1);
+                    
+                    if (!r)
+                    {
+                        TRACELOG(LOG_WARNING, "MODEL: [%s] Failed to load input time", fileName);
+                        continue;
+                    }
+
+                    animDuration = (t > animDuration)? t : animDuration;
+                }
+
+                animations[i].frameCount = (int)(animDuration*1000.0f/GLTF_ANIMDELAY);
+                animations[i].framePoses = RL_MALLOC(animations[i].frameCount*sizeof(Transform *));
+
+                for (int j = 0; j < animations[i].frameCount; j++)
+                {
+                    animations[i].framePoses[j] = RL_MALLOC(animations[i].boneCount*sizeof(Transform));
+                    float time = ((float) j*GLTF_ANIMDELAY)/1000.0f;
+                    
+                    for (int k = 0; k < animations[i].boneCount; k++)
+                    {
+                        Vector3 translation = {0, 0, 0};
+                        Quaternion rotation = {0, 0, 0, 1};
+                        Vector3 scale = {1, 1, 1};
+                        
+                        if (boneChannels[k].translate)
+                        {
+                            if (!GetPoseAtTimeGLTF(boneChannels[k].translate->sampler->input, boneChannels[k].translate->sampler->output, time, &translation))
+                            {
+                                TRACELOG(LOG_INFO, "MODEL: [%s] Failed to load translate pose data for bone %s", fileName, animations[i].bones[k].name);
+                            }
+                        }
+
+                        if (boneChannels[k].rotate)
+                        {
+                            if (!GetPoseAtTimeGLTF(boneChannels[k].rotate->sampler->input, boneChannels[k].rotate->sampler->output, time, &rotation))
+                            {
+                                TRACELOG(LOG_INFO, "MODEL: [%s] Failed to load rotate pose data for bone %s", fileName, animations[i].bones[k].name);
+                            }
+                        }
+
+                        if (boneChannels[k].scale)
+                        {
+                            if (!GetPoseAtTimeGLTF(boneChannels[k].scale->sampler->input, boneChannels[k].scale->sampler->output, time, &scale))
+                            {
+                                TRACELOG(LOG_INFO, "MODEL: [%s] Failed to load scale pose data for bone %s", fileName, animations[i].bones[k].name);
+                            }
+                        }
+
+                        animations[i].framePoses[j][k] = (Transform){
+                            .translation = translation,
+                            .rotation = rotation,
+                            .scale = scale
+                        };
+                    }
+
+                    BuildPoseFromParentJoints(animations[i].bones, animations[i].boneCount, animations[i].framePoses[j]);
+                }
+
+                TRACELOG(LOG_INFO, "MODEL: [%s] Loaded animation: %s (%d frames, %fs)", fileName, animData.name, animations[i].frameCount, animDuration);
+                RL_FREE(boneChannels);
+            }
+        }
+        else TRACELOG(LOG_ERROR, "MODEL: [%s] expected exactly one skin to load animation data from, but found %i", fileName, data->skins_count);
+
+        cgltf_free(data);
+    }
+
+    return animations;
 }
 #endif
 
